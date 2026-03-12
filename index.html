@@ -208,11 +208,14 @@
           const [lang, setLang] = useState('pt');
           const t = dict[lang];
           const [isDarkMode, setIsDarkMode] = useState(false);
+          const [showNotifs, setShowNotifs] = useState(false);
           
           const [mapZoom, setMapZoom] = useState(1);
           const [isFullscreen, setIsFullscreen] = useState(false);
           const [toastMsg, setToastMsg] = useState(null);
 
+          const [checkins, setCheckins] = useState([]);
+          const totalPoints = checkins.length * 50;
           const [resTab, setResTab] = useState('overall');
           const [showAR, setShowAR] = useState(false);
 
@@ -241,6 +244,13 @@
               } else { newFilters.push(id); }
               setActiveFilters(newFilters);
               setSelectedPoint(null);
+          };
+
+          const handleCheckin = (locId) => {
+              if (!checkins.includes(locId)) {
+                  setCheckins([...checkins, locId]);
+                  showToast(lang === 'pt' ? "Check-in Concluído! +50 pts" : "Check-in Completed! +50 pts");
+              }
           };
 
           const toggleFullscreen = () => {
@@ -358,59 +368,70 @@
 
           // --- LEAFLET MAP EFFECT (ABA DE MAPA) ---
           useEffect(() => {
-              if (activeTab === 'map' && !showSplash) {
+              if (activeTab !== 'map' || showSplash) return;
+              
+              const mapContainer = document.getElementById('real-map');
+              if (!mapContainer || !window.L) return;
+
+              // LIMPEZA SEGURA DO LEAFLET: Remove o _leaflet_id caso o React tenha mantido o DOM vivo
+              if (mapContainer._leaflet_id) {
+                  mapContainer._leaflet_id = null;
+              }
+              if (window.leafletMap) {
+                  window.leafletMap.remove();
+                  window.leafletMap = null;
+              }
+
+              const map = window.L.map('real-map', { zoomControl: false }).setView([41.679, -8.836], 15);
+              window.leafletMap = map;
+              
+              window.L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+                  maxZoom: 20,
+                  attribution: '© Google'
+              }).addTo(map);
+
+              kmlLines.forEach(line => {
+                  window.L.polyline(line.coords, { color: line.color, weight: 4, dashArray: '5, 5' }).addTo(map);
+              });
+
+              kmlLocations.forEach(loc => {
+                  if (loc.coords.length > 2) {
+                      window.L.polygon(loc.coords, {
+                          color: loc.color,
+                          fillColor: loc.color,
+                          fillOpacity: 0.4,
+                          weight: 2
+                      }).addTo(map);
+                  }
+
+                  let latSum = 0, lngSum = 0;
+                  loc.coords.forEach(c => { latSum += c[0]; lngSum += c[1]; });
+                  const center = [latSum / loc.coords.length, lngSum / loc.coords.length];
+                  
+                  const divIcon = window.L.divIcon({
+                      className: 'leaflet-div-icon-custom',
+                      html: `<div class="${loc.twColor} w-8 h-8 rounded-xl shadow-[0_0_15px_rgba(0,0,0,0.5)] border-2 border-white flex items-center justify-center text-white cursor-pointer hover:scale-110 transition-transform" onclick="window.selectLocGlobal('${loc.id}')">
+                               <i data-lucide="${loc.iconStr}" style="width:16px;height:16px;"></i>
+                             </div>`,
+                      iconSize: [32, 32],
+                      iconAnchor: [16, 16]
+                  });
+
+                  window.L.marker(center, {icon: divIcon}).addTo(map);
+              });
+              
+              setTimeout(() => { 
+                  if(window.leafletMap) window.leafletMap.invalidateSize();
+                  if(window.lucide) window.lucide.createIcons(); 
+              }, 200);
+
+              // FUNÇÃO DE CLEANUP REACT: Destrói a instância ao desmontar
+              return () => {
                   if (window.leafletMap) {
                       window.leafletMap.remove();
                       window.leafletMap = null;
                   }
-
-                  const mapContainer = document.getElementById('real-map');
-                  if (mapContainer && window.L) {
-                      const map = window.L.map('real-map', { zoomControl: false }).setView([41.679, -8.836], 15);
-                      window.leafletMap = map;
-                      
-                      window.L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-                          maxZoom: 20,
-                          attribution: '© Google'
-                      }).addTo(map);
-
-                      kmlLines.forEach(line => {
-                          window.L.polyline(line.coords, { color: line.color, weight: 4, dashArray: '5, 5' }).addTo(map);
-                      });
-
-                      kmlLocations.forEach(loc => {
-                          if (loc.coords.length > 2) {
-                              window.L.polygon(loc.coords, {
-                                  color: loc.color,
-                                  fillColor: loc.color,
-                                  fillOpacity: 0.4,
-                                  weight: 2
-                              }).addTo(map);
-                          }
-
-                          let latSum = 0, lngSum = 0;
-                          loc.coords.forEach(c => { latSum += c[0]; lngSum += c[1]; });
-                          const center = [latSum / loc.coords.length, lngSum / loc.coords.length];
-                          
-                          const divIcon = window.L.divIcon({
-                              className: 'leaflet-div-icon-custom',
-                              html: `<div class="${loc.twColor} w-8 h-8 rounded-xl shadow-[0_0_15px_rgba(0,0,0,0.5)] border-2 border-white flex items-center justify-center text-white cursor-pointer hover:scale-110 transition-transform" onclick="window.selectLocGlobal('${loc.id}')">
-                                       <i data-lucide="${loc.iconStr}" style="width:16px;height:16px;"></i>
-                                     </div>`,
-                              iconSize: [32, 32],
-                              iconAnchor: [16, 16]
-                          });
-
-                          window.L.marker(center, {icon: divIcon}).addTo(map);
-                      });
-                      
-                      // FORÇA O RESIZE APÓS CARREGAR PARA GARANTIR QUE NÃO FICA ESTICADO
-                      setTimeout(() => { 
-                          if(window.leafletMap) window.leafletMap.invalidateSize();
-                          if(window.lucide) window.lucide.createIcons(); 
-                      }, 200);
-                  }
-              }
+              };
           }, [activeTab, showSplash, kmlLocations]);
 
           // --- LEAFLET TRACKING EFFECT (NOVA ABA TRACKING) ---
@@ -418,48 +439,59 @@
           const markersRef = useRef({});
 
           useEffect(() => {
-              if (activeTab === 'tracking' && !showSplash) {
-                  // Atraso de segurança para permitir que o DOM renderize a aba Tracking
-                  setTimeout(() => {
-                      const mapContainer = document.getElementById('tracking-map');
-                      if (mapContainer && window.L && !trackingMapRef.current) {
-                          const map = window.L.map('tracking-map', { zoomControl: false }).setView([41.675, -8.855], 14);
-                          trackingMapRef.current = map;
-                          
-                          window.L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-                              maxZoom: 20,
-                              attribution: '© Google'
+              if (activeTab !== 'tracking' || showSplash) return;
+              
+              let timeoutId = setTimeout(() => {
+                  const mapContainer = document.getElementById('tracking-map');
+                  if (!mapContainer || !window.L) return;
+
+                  // LIMPEZA SEGURA DO LEAFLET: Remove o _leaflet_id caso o React tenha mantido o DOM vivo
+                  if (mapContainer._leaflet_id) {
+                      mapContainer._leaflet_id = null;
+                  }
+                  if (trackingMapRef.current) {
+                      trackingMapRef.current.remove();
+                      trackingMapRef.current = null;
+                  }
+                  
+                  const map = window.L.map('tracking-map', { zoomControl: false }).setView([41.675, -8.855], 14);
+                  trackingMapRef.current = map;
+                  
+                  window.L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+                      maxZoom: 20,
+                      attribution: '© Google'
+                  }).addTo(map);
+
+                  // APENAS AS ZONAS AMARELAS (Race Areas) E LINHAS
+                  kmlLines.forEach(line => {
+                      window.L.polyline(line.coords, { color: line.color, weight: 4, dashArray: '5, 5' }).addTo(map);
+                  });
+
+                  kmlLocations.filter(loc => loc.type === 'race').forEach(loc => {
+                      if (loc.coords.length > 2) {
+                          window.L.polygon(loc.coords, {
+                              color: loc.color,
+                              fillColor: loc.color,
+                              fillOpacity: 0.4,
+                              weight: 2
                           }).addTo(map);
-
-                          // APENAS AS ZONAS AMARELAS (Race Areas) E LINHAS
-                          kmlLines.forEach(line => {
-                              window.L.polyline(line.coords, { color: line.color, weight: 4, dashArray: '5, 5' }).addTo(map);
-                          });
-
-                          kmlLocations.filter(loc => loc.type === 'race').forEach(loc => {
-                              if (loc.coords.length > 2) {
-                                  window.L.polygon(loc.coords, {
-                                      color: loc.color,
-                                      fillColor: loc.color,
-                                      fillOpacity: 0.4,
-                                      weight: 2
-                                  }).addTo(map);
-                              }
-                          });
-                          
-                          // FORÇA O RESIZE APÓS CARREGAR PARA GARANTIR QUE NÃO FICA ESTICADO
-                          setTimeout(() => { 
-                              if(trackingMapRef.current) trackingMapRef.current.invalidateSize();
-                          }, 200);
                       }
-                  }, 100);
-              } else {
+                  });
+                  
+                  setTimeout(() => { 
+                      if(trackingMapRef.current) trackingMapRef.current.invalidateSize();
+                  }, 200);
+              }, 100);
+
+              // FUNÇÃO DE CLEANUP REACT: Destrói a instância ao desmontar
+              return () => {
+                  if (timeoutId) clearTimeout(timeoutId);
                   if (trackingMapRef.current) {
                       trackingMapRef.current.remove();
                       trackingMapRef.current = null;
                       markersRef.current = {};
                   }
-              }
+              };
           }, [activeTab, showSplash, kmlLocations]);
 
           // ATUALIZAÇÃO DOS PINOS EM TEMPO REAL
@@ -1194,7 +1226,6 @@
 
                                           <a href="https://modoexpertoschool.com/kitesurf/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
                                               <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                                                  {/* Ícone Estrela Escola Modo Experto */}
                                                   <MIcon name="star" size={24} />
                                               </div>
                                               <div className="flex-1">

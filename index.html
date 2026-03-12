@@ -185,6 +185,11 @@
             }
         };
 
+        // Simulação do Service Worker (PWA Placeholder)
+        if ('serviceWorker' in navigator) {
+            console.log("PWA Offline mode ready.");
+        }
+
         const App = () => {
           // --- SPLASH SCREEN STATE ---
           const [showSplash, setShowSplash] = useState(true);
@@ -203,14 +208,11 @@
           const [lang, setLang] = useState('pt');
           const t = dict[lang];
           const [isDarkMode, setIsDarkMode] = useState(false);
-          const [showNotifs, setShowNotifs] = useState(false);
           
           const [mapZoom, setMapZoom] = useState(1);
           const [isFullscreen, setIsFullscreen] = useState(false);
           const [toastMsg, setToastMsg] = useState(null);
 
-          const [checkins, setCheckins] = useState([]);
-          const totalPoints = checkins.length * 50;
           const [resTab, setResTab] = useState('overall');
           const [showAR, setShowAR] = useState(false);
 
@@ -241,13 +243,6 @@
               setSelectedPoint(null);
           };
 
-          const handleCheckin = (locId) => {
-              if (!checkins.includes(locId)) {
-                  setCheckins([...checkins, locId]);
-                  showToast(lang === 'pt' ? "Check-in Concluído! +50 pts" : "Check-in Completed! +50 pts");
-              }
-          };
-
           const toggleFullscreen = () => {
               if (!document.fullscreenElement) {
                   document.documentElement.requestFullscreen().catch(err => console.log(err));
@@ -273,7 +268,7 @@
               }
           }, [showSplash, t.toast2, t.toast3]);
 
-          // --- NOVO TRACKING STATE BASEADO EM COORDENADAS REAIS (LAT/LNG) ---
+          // --- TRACKING STATE BASEADO EM COORDENADAS REAIS (LAT/LNG) ---
           const [liveAthletes, setLiveAthletes] = useState([
               { id: 1, pos: 1, name: 'A. Mazella', country: 'FRA', flag: '🇫🇷', sail: '21', speed: 28, lat: 41.6780, lng: -8.8550 },
               { id: 2, pos: 2, name: 'M. Maeder', country: 'SGP', flag: '🇸🇬', sail: '1', speed: 27, lat: 41.6750, lng: -8.8580 },
@@ -286,7 +281,6 @@
               const interval = setInterval(() => {
                   setLiveAthletes(prev => prev.map(a => ({
                       ...a,
-                      // Movimento geográfico real randomizado em torno das zonas do mar
                       lat: a.lat + (Math.random() - 0.5) * 0.0008,
                       lng: a.lng + (Math.random() - 0.5) * 0.0008,
                       speed: Math.floor(Math.max(20, Math.min(35, a.speed + (Math.random() - 0.5) * 3)))
@@ -333,23 +327,23 @@
               { pos: 5, nat: 'POR', flag: '🇵🇹', name: 'Tomás Pires Lima', status: 'SEMI-FINAL' },
           ];
 
-          // === DADOS KML OFICIAIS EXTRAÍDOS + PONTOS RECICLAGEM ===
+          // === DADOS KML OFICIAIS EXTRAÍDOS ===
           const kmlLocations = useMemo(() => [
-              { id: 'race_groups', type: 'race', name: lang === 'pt' ? 'Qualificações (Race Area)' : 'Qualifiers (Race Area)', description: lang === 'pt' ? 'Área principal para as regatas de qualificação no oceano.' : 'Main zone for ocean qualifying races.', coords: [[41.680864,-8.849865],[41.685324,-8.859378],[41.682129,-8.868657],[41.671461,-8.870596],[41.667096,-8.859935],[41.670984,-8.847808]], iconStr: 'waves', icon: <MIcon name="waves" />, color: '#facc15', twColor: 'bg-yellow-500', hasQR: false },
-              { id: 'race_finals', type: 'race', name: lang === 'pt' ? 'Finais (Race Area)' : 'Finals (Race Area)', description: lang === 'pt' ? 'Área reservada para a Medal Series (Finais).' : 'Reserved for the Medal Series (Finals).', coords: [[41.670146,-8.839606],[41.668041,-8.835275],[41.668890,-8.831358],[41.673116,-8.831389],[41.675537,-8.834998],[41.674686,-8.838955]], iconStr: 'trophy', icon: <MIcon name="trophy" />, color: '#facc15', twColor: 'bg-yellow-400', hasQR: false },
-              { id: 'hotel', type: 'logistics', name: 'Hotel Feel Viana', description: lang === 'pt' ? 'Alojamento oficial das equipas e organização ao lado da prova.' : 'Official accommodation for teams and organization near the venue.', coords: [[41.680353,-8.829790],[41.680857,-8.828637],[41.681817,-8.830230],[41.681533,-8.830842]], iconStr: 'building', icon: <MIcon name="building" />, color: '#8b5cf6', twColor: 'bg-purple-600', hasQR: true },
-              { id: 'riders_tent', type: 'logistics', name: 'Riders Tent', description: lang === 'pt' ? 'Tenda de apoio aos atletas.' : 'Athletes support tent.', coords: [[41.678644,-8.831298],[41.678337,-8.830976],[41.678421,-8.830871],[41.678722,-8.831183]], iconStr: 'tent', icon: <MIcon name="tent" />, color: '#3b82f6', twColor: 'bg-blue-500', hasQR: false },
-              { id: 'race_office', type: 'fanzone', name: 'Racing Office & Measurements', description: lang === 'pt' ? 'Secretariado oficial e zona de medição.' : 'Official secretariat and measurement zone.', coords: [[41.678862,-8.831542],[41.678886,-8.831515],[41.678922,-8.831483],[41.679005,-8.831632],[41.678940,-8.831689]], iconStr: 'info', icon: <MIcon name="info" />, color: '#ef4444', twColor: 'bg-red-500', hasQR: true },
-              { id: 'beach_bar', type: 'fanzone', name: 'Beach Bar', description: lang === 'pt' ? 'Ponto de encontro e socialização.' : 'Meeting and socialization point.', coords: [[41.678858,-8.831532],[41.678809,-8.831436],[41.678868,-8.831387],[41.678915,-8.831475]], iconStr: 'coffee', icon: <MIcon name="coffee" />, color: '#ec4899', twColor: 'bg-pink-500', hasQR: true },
-              { id: 'south_van', type: 'logistics', name: 'South Van Parking', description: lang === 'pt' ? 'Estacionamento Sul para carrinhas.' : 'South parking for vans.', coords: [[41.678060,-8.827693],[41.677928,-8.827567],[41.678295,-8.827095],[41.678394,-8.827213]], iconStr: 'car', icon: <MIcon name="car" />, color: '#64748b', twColor: 'bg-slate-500', hasQR: false },
-              { id: 'north_van', type: 'logistics', name: 'North Van Parking', description: lang === 'pt' ? 'Estacionamento Norte para carrinhas.' : 'North parking for vans.', coords: [[41.680407,-8.828795],[41.680366,-8.828745],[41.680612,-8.828167],[41.680658,-8.828221]], iconStr: 'car', icon: <MIcon name="car" />, color: '#64748b', twColor: 'bg-slate-500', hasQR: false },
-              { id: 'trailer_park', type: 'logistics', name: 'Trailer Park', description: lang === 'pt' ? 'Estacionamento de atrelados.' : 'Trailer parking.', coords: [[41.685294,-8.837139],[41.685448,-8.837358],[41.685157,-8.837791],[41.685004,-8.837564]], iconStr: 'truck', icon: <MIcon name="truck" />, color: '#64748b', twColor: 'bg-slate-500', hasQR: false },
-              { id: 'rib_south', type: 'logistics', name: 'Rib South', description: lang === 'pt' ? 'Estacionamento de barcos de apoio a sul.' : 'Support boats parking south.', coords: [[41.683102,-8.829154],[41.683367,-8.829112],[41.683573,-8.830164],[41.683328,-8.830247]], iconStr: 'anchor', icon: <MIcon name="anchor" />, color: '#f97316', twColor: 'bg-orange-500', hasQR: false },
-              { id: 'rib_north', type: 'logistics', name: 'Rib Area North', description: lang === 'pt' ? 'Estacionamento de barcos de apoio a norte.' : 'Support boats parking north.', coords: [[41.686631,-8.838747],[41.686393,-8.839250],[41.685539,-8.838522],[41.685732,-8.838111]], iconStr: 'anchor', icon: <MIcon name="anchor" />, color: '#f97316', twColor: 'bg-orange-500', hasQR: false },
-              { id: 'rib_crane', type: 'logistics', name: 'Rib Crane', description: lang === 'pt' ? 'Grua para colocação de barcos.' : 'Crane for deploying boats.', coords: [[41.685025,-8.838565],[41.684902,-8.838449],[41.685060,-8.838120],[41.685173,-8.838277]], iconStr: 'ship', icon: <MIcon name="ship" />, color: '#06b6d4', twColor: 'bg-cyan-500', hasQR: false },
-              { id: 'eco_1', type: 'eco', name: lang === 'pt' ? 'Eco Station (Público)' : 'Eco Station (Public)', description: lang === 'pt' ? 'Estação de reciclagem para o público e restauração.' : 'Recycling station for the public and food court.', coords: [[41.678750,-8.831300]], iconStr: 'recycle', icon: <MIcon name="recycle" />, color: '#22c55e', twColor: 'bg-green-500', hasQR: false },
-              { id: 'eco_2', type: 'eco', name: lang === 'pt' ? 'Eco Station (Atletas)' : 'Eco Station (Athletes)', description: lang === 'pt' ? 'Estação de reciclagem na zona técnica e tenda dos atletas.' : 'Recycling station in the technical area and athletes tent.', coords: [[41.678500,-8.830900]], iconStr: 'recycle', icon: <MIcon name="recycle" />, color: '#22c55e', twColor: 'bg-green-500', hasQR: false },
-              { id: 'eco_3', type: 'eco', name: lang === 'pt' ? 'Eco Station (Norte)' : 'Eco Station (North)', description: lang === 'pt' ? 'Ponto de recolha e ecoponto na zona norte e Trailer Park.' : 'Collection point and ecopoint in the north zone and Trailer Park.', coords: [[41.685300,-8.837500]], iconStr: 'recycle', icon: <MIcon name="recycle" />, color: '#22c55e', twColor: 'bg-green-500', hasQR: false }
+              { id: 'race_groups', type: 'race', name: lang === 'pt' ? 'Qualificações (Race Area)' : 'Qualifiers (Race Area)', description: lang === 'pt' ? 'Área principal para as regatas de qualificação no oceano.' : 'Main zone for ocean qualifying races.', coords: [[41.680864,-8.849865],[41.685324,-8.859378],[41.682129,-8.868657],[41.671461,-8.870596],[41.667096,-8.859935],[41.670984,-8.847808]], iconStr: 'waves', icon: <MIcon name="waves" />, color: '#facc15', twColor: 'bg-yellow-500' },
+              { id: 'race_finals', type: 'race', name: lang === 'pt' ? 'Finais (Race Area)' : 'Finals (Race Area)', description: lang === 'pt' ? 'Área reservada para a Medal Series (Finais).' : 'Reserved for the Medal Series (Finals).', coords: [[41.670146,-8.839606],[41.668041,-8.835275],[41.668890,-8.831358],[41.673116,-8.831389],[41.675537,-8.834998],[41.674686,-8.838955]], iconStr: 'trophy', icon: <MIcon name="trophy" />, color: '#facc15', twColor: 'bg-yellow-400' },
+              { id: 'hotel', type: 'logistics', name: 'Hotel Feel Viana', description: lang === 'pt' ? 'Alojamento oficial das equipas e organização ao lado da prova.' : 'Official accommodation for teams and organization near the venue.', coords: [[41.680353,-8.829790],[41.680857,-8.828637],[41.681817,-8.830230],[41.681533,-8.830842]], iconStr: 'building', icon: <MIcon name="building" />, color: '#8b5cf6', twColor: 'bg-purple-600' },
+              { id: 'riders_tent', type: 'logistics', name: 'Riders Tent', description: lang === 'pt' ? 'Tenda de apoio aos atletas.' : 'Athletes support tent.', coords: [[41.678644,-8.831298],[41.678337,-8.830976],[41.678421,-8.830871],[41.678722,-8.831183]], iconStr: 'tent', icon: <MIcon name="tent" />, color: '#3b82f6', twColor: 'bg-blue-500' },
+              { id: 'race_office', type: 'fanzone', name: 'Racing Office & Measurements', description: lang === 'pt' ? 'Secretariado oficial e zona de medição.' : 'Official secretariat and measurement zone.', coords: [[41.678862,-8.831542],[41.678886,-8.831515],[41.678922,-8.831483],[41.679005,-8.831632],[41.678940,-8.831689]], iconStr: 'info', icon: <MIcon name="info" />, color: '#ef4444', twColor: 'bg-red-500' },
+              { id: 'beach_bar', type: 'fanzone', name: 'Beach Bar', description: lang === 'pt' ? 'Ponto de encontro e socialização.' : 'Meeting and socialization point.', coords: [[41.678858,-8.831532],[41.678809,-8.831436],[41.678868,-8.831387],[41.678915,-8.831475]], iconStr: 'coffee', icon: <MIcon name="coffee" />, color: '#ec4899', twColor: 'bg-pink-500' },
+              { id: 'south_van', type: 'logistics', name: 'South Van Parking', description: lang === 'pt' ? 'Estacionamento Sul para carrinhas.' : 'South parking for vans.', coords: [[41.678060,-8.827693],[41.677928,-8.827567],[41.678295,-8.827095],[41.678394,-8.827213]], iconStr: 'car', icon: <MIcon name="car" />, color: '#64748b', twColor: 'bg-slate-500' },
+              { id: 'north_van', type: 'logistics', name: 'North Van Parking', description: lang === 'pt' ? 'Estacionamento Norte para carrinhas.' : 'North parking for vans.', coords: [[41.680407,-8.828795],[41.680366,-8.828745],[41.680612,-8.828167],[41.680658,-8.828221]], iconStr: 'car', icon: <MIcon name="car" />, color: '#64748b', twColor: 'bg-slate-500' },
+              { id: 'trailer_park', type: 'logistics', name: 'Trailer Park', description: lang === 'pt' ? 'Estacionamento de atrelados.' : 'Trailer parking.', coords: [[41.685294,-8.837139],[41.685448,-8.837358],[41.685157,-8.837791],[41.685004,-8.837564]], iconStr: 'truck', icon: <MIcon name="truck" />, color: '#64748b', twColor: 'bg-slate-500' },
+              { id: 'rib_south', type: 'logistics', name: 'Rib South', description: lang === 'pt' ? 'Estacionamento de barcos de apoio a sul.' : 'Support boats parking south.', coords: [[41.683102,-8.829154],[41.683367,-8.829112],[41.683573,-8.830164],[41.683328,-8.830247]], iconStr: 'anchor', icon: <MIcon name="anchor" />, color: '#f97316', twColor: 'bg-orange-500' },
+              { id: 'rib_north', type: 'logistics', name: 'Rib Area North', description: lang === 'pt' ? 'Estacionamento de barcos de apoio a norte.' : 'Support boats parking north.', coords: [[41.686631,-8.838747],[41.686393,-8.839250],[41.685539,-8.838522],[41.685732,-8.838111]], iconStr: 'anchor', icon: <MIcon name="anchor" />, color: '#f97316', twColor: 'bg-orange-500' },
+              { id: 'rib_crane', type: 'logistics', name: 'Rib Crane', description: lang === 'pt' ? 'Grua para colocação de barcos.' : 'Crane for deploying boats.', coords: [[41.685025,-8.838565],[41.684902,-8.838449],[41.685060,-8.838120],[41.685173,-8.838277]], iconStr: 'ship', icon: <MIcon name="ship" />, color: '#06b6d4', twColor: 'bg-cyan-500' },
+              { id: 'eco_1', type: 'eco', name: lang === 'pt' ? 'Eco Station (Público)' : 'Eco Station (Public)', description: lang === 'pt' ? 'Estação de reciclagem para o público e restauração.' : 'Recycling station for the public and food court.', coords: [[41.678750,-8.831300]], iconStr: 'recycle', icon: <MIcon name="recycle" />, color: '#22c55e', twColor: 'bg-green-500' },
+              { id: 'eco_2', type: 'eco', name: lang === 'pt' ? 'Eco Station (Atletas)' : 'Eco Station (Athletes)', description: lang === 'pt' ? 'Estação de reciclagem na zona técnica e tenda dos atletas.' : 'Recycling station in the technical area and athletes tent.', coords: [[41.678500,-8.830900]], iconStr: 'recycle', icon: <MIcon name="recycle" />, color: '#22c55e', twColor: 'bg-green-500' },
+              { id: 'eco_3', type: 'eco', name: lang === 'pt' ? 'Eco Station (Norte)' : 'Eco Station (North)', description: lang === 'pt' ? 'Ponto de recolha e ecoponto na zona norte e Trailer Park.' : 'Collection point and ecopoint in the north zone and Trailer Park.', coords: [[41.685300,-8.837500]], iconStr: 'recycle', icon: <MIcon name="recycle" />, color: '#22c55e', twColor: 'bg-green-500' }
           ], [lang]);
 
           const kmlLines = [
@@ -505,7 +499,6 @@
               }
           }, [selectedPoint]);
 
-
           const eventSchedule = useMemo(() => [
               { date: '8 Mai', activity: lang === 'pt' ? 'Abertura do Recinto / Registo' : 'Venue Opening / Registration', time: '15:00 - 18:00', status: 'setup' },
               { date: '9 Mai', activity: lang === 'pt' ? 'Inspeção de Equipamento' : 'Equipment Inspection', time: '09:00 - 18:00', status: 'check' },
@@ -634,10 +627,6 @@
                           
                           {/* Mobile Right Controls */}
                           <div className="flex items-center gap-2 lg:hidden">
-                            <div className="flex items-center gap-1 bg-white/10 px-2.5 py-1.5 rounded-lg border border-white/5">
-                                <MIcon name="star" size={12} className="text-amber-400" />
-                                <span className="text-xs font-bold text-amber-50">{totalPoints}</span>
-                            </div>
                             <button onClick={toggleFullscreen} className="p-2 rounded-full hover:bg-white/10 text-white"><MIcon name={isFullscreen ? "minimize" : "maximize"} size={18} /></button>
                             <button onClick={() => showToast(t.toast1)} className="p-2 rounded-full hover:bg-white/10 text-white relative">
                                 <MIcon name="bell" size={18} /><span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
@@ -665,10 +654,6 @@
                         
                         {/* Desktop Side Controls */}
                         <div className="hidden lg:flex items-center gap-2 ml-2 pl-3 border-l border-white/10">
-                            <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-lg border border-white/5 mr-1" title="Kite Pass Points">
-                                <MIcon name="star" size={14} className="text-amber-400" />
-                                <span className="text-sm font-black text-amber-50">{totalPoints}</span>
-                            </div>
                             <button onClick={toggleFullscreen} className="p-2 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white transition-colors" title="Fullscreen"><MIcon name={isFullscreen ? "minimize" : "maximize"} size={16} /></button>
                             <button onClick={() => showToast(t.toast1)} className="p-2 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white relative"><MIcon name="bell" size={16} /><span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span></button>
                         </div>
@@ -676,7 +661,7 @@
                   </div>
                 </header>
 
-                {/* === CONTEÚDO PRINCIPAL (Roteador Manual) === */}
+                {/* === CONTEÚDO PRINCIPAL === */}
                 <div className={`flex-1 flex overflow-hidden ${activeTab === 'map' || activeTab === 'tracking' ? 'flex-col lg:flex-row' : 'flex-col'}`}>
                   
                   {/* 1️⃣ MAPA GOOGLE EARTH (GERAL - LEAFLET + KML DATA COMPLETO) */}
@@ -733,24 +718,6 @@
 
                               <p className="text-slate-600 dark:text-slate-300 text-xs lg:text-sm leading-relaxed mb-4 transition-colors">{selectedPoint.description}</p>
                               
-                              {selectedPoint.hasQR && (
-                                <div className="mb-6 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-4 transition-all">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <MIcon name="star" size={16} className="text-amber-500" />
-                                        <h4 className="text-xs font-bold text-amber-900 dark:text-amber-400 uppercase tracking-widest">Kite Pass Gamification</h4>
-                                    </div>
-                                    {!checkins.includes(selectedPoint.id) ? (
-                                        <button onClick={() => handleCheckin(selectedPoint.id)} className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black text-xs py-3 rounded-xl flex items-center justify-center gap-2 shadow-sm transition-colors">
-                                            <MIcon name="scan" size={16} /> {lang === 'pt' ? 'Fazer Check-in Local' : 'Location Check-in'}
-                                        </button>
-                                    ) : (
-                                        <div className="w-full bg-white/50 dark:bg-slate-900/50 text-amber-600 dark:text-amber-500 font-bold text-xs py-3 rounded-xl flex items-center justify-center gap-2 border border-amber-200/50 dark:border-amber-700/50">
-                                            <MIcon name="check-circle" size={16} /> {lang === 'pt' ? 'Check-in Concluído! (+50 pts)' : 'Check-in Completed! (+50 pts)'}
-                                        </div>
-                                    )}
-                                </div>
-                              )}
-
                               <div className="space-y-3 lg:space-y-4">
                                 <div className="bg-slate-50 dark:bg-slate-800/50 p-4 lg:p-5 rounded-2xl lg:rounded-3xl border border-slate-100 dark:border-slate-700 flex items-center gap-4 lg:gap-5 transition-colors">
                                   <div className="p-2.5 lg:p-3 bg-white dark:bg-slate-800 rounded-xl lg:rounded-2xl shadow-sm text-emerald-500 shrink-0">
@@ -790,9 +757,6 @@
                                     <div className="text-slate-300 dark:text-slate-600 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all z-10">
                                       →
                                     </div>
-                                    {loc.hasQR && checkins.includes(loc.id) && (
-                                        <div className="absolute right-0 top-0 bottom-0 w-1 bg-amber-400"></div>
-                                    )}
                                   </button>
                                 ))}
                               </div>
@@ -970,14 +934,14 @@
                           </div>
                       </div>
                   ) : activeTab === 'hotel' ? (
-                      /* 🏨 SECÇÃO HOTEL FEELVIANA (NOVA) */
+                      /* 🏨 SECÇÃO HOTEL FEELVIANA */
                       <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950 p-4 lg:p-12 animate-in fade-in duration-500">
                           <div className="max-w-4xl mx-auto space-y-8">
                               <div className="w-full bg-slate-900 rounded-[2rem] relative overflow-hidden shadow-2xl border border-slate-800">
                                   <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80" className="w-full h-64 md:h-96 object-cover opacity-60" alt="FeelViana Hotel" />
                                   <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent flex flex-col justify-end p-8 lg:p-12">
                                       <span className="text-emerald-400 font-black uppercase tracking-widest text-xs mb-2 flex items-center gap-2">
-                                          <MIcon name="star" size={14} /> {t.hotelTitle}
+                                          <MIcon name="bookmark" size={14} /> {t.hotelTitle}
                                       </span>
                                       <h2 className="text-3xl md:text-5xl font-black text-white mb-4 leading-tight">{t.hotelName}</h2>
                                       <p className="text-slate-300 max-w-2xl text-sm md:text-base mb-8">{t.hotelDesc}</p>

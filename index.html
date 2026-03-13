@@ -309,6 +309,57 @@
               showToast(lang === 'pt' ? "CSV Exportado com sucesso! ✅" : "CSV Exported successfully! ✅");
           };
 
+          // --- FUNÇÃO PARA EXPORTAR CALENDÁRIO (iCal) ---
+          const exportCalendar = () => {
+              // Formato base de um ficheiro iCal
+              let icsContent = [
+                  "BEGIN:VCALENDAR",
+                  "VERSION:2.0",
+                  "PRODID:-//Formula Kite World Championships 2026//PT",
+                  "CALSCALE:GREGORIAN",
+                  "METHOD:PUBLISH"
+              ];
+
+              // Mapeamento das datas do evento (Maio 2026)
+              const scheduleDates = {
+                  '8 Mai': { start: '20260508T150000Z', end: '20260508T180000Z' },
+                  '9 Mai': { start: '20260509T090000Z', end: '20260509T180000Z' },
+                  '10 Mai': { start: '20260510T180000Z', end: '20260510T200000Z' },
+                  '11-15 Mai': { start: '20260511T110000Z', end: '20260515T180000Z' },
+                  '16 Mai': { start: '20260516T121500Z', end: '20260516T180000Z' }
+              };
+
+              eventSchedule.forEach((item, index) => {
+                  const dates = scheduleDates[item.date];
+                  if (dates) {
+                      icsContent.push(
+                          "BEGIN:VEVENT",
+                          `UID:event-${index}@formulakite2026.com`,
+                          `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
+                          `DTSTART:${dates.start}`,
+                          `DTEND:${dates.end}`,
+                          `SUMMARY:Formula Kite 2026 - ${item.activity}`,
+                          `DESCRIPTION:${item.activity} - Praia do Cabedelo, Viana do Castelo`,
+                          "LOCATION:Praia do Cabedelo, Viana do Castelo, Portugal",
+                          "END:VEVENT"
+                      );
+                  }
+              });
+
+              icsContent.push("END:VCALENDAR");
+
+              const blob = new Blob([icsContent.join('\n')], { type: 'text/calendar;charset=utf-8' });
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'formula_kite_2026_schedule.ics';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              
+              showToast(lang === 'pt' ? "Calendário exportado! Podes adicionar à tua agenda. 📅" : "Schedule exported! You can add it to your calendar. 📅");
+          };
+
           // 🏄 ATLETAS DATA
           const athleteProfiles = [
               { name: 'Axel Mazella', nat: 'FRA', flag: '🇫🇷', sail: '21', rank: 1, gear: 'Ozone / Levitaz', kites: '15m / 11m / 9m VMG', desc: lang === 'pt' ? 'Favorito com vento forte e águas mexidas.' : 'Favorite in strong winds and choppy waters.' },
@@ -1022,8 +1073,13 @@
                               {t.schedTitle}
                             </h2>
                           </div>
-                          <div className="inline-flex self-start md:self-auto items-center gap-2 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 lg:px-4 lg:py-2 rounded-lg lg:rounded-xl font-bold text-xs lg:text-sm border border-blue-100 dark:border-blue-800">
-                            <MIcon name="info" size={16} className="lg:w-[18px] lg:h-[18px]" /> {t.schedDoc}
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                              <div className="inline-flex items-center gap-2 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 lg:px-4 lg:py-2 rounded-lg lg:rounded-xl font-bold text-xs lg:text-sm border border-blue-100 dark:border-blue-800">
+                                <MIcon name="info" size={16} className="lg:w-[18px] lg:h-[18px]" /> {t.schedDoc}
+                              </div>
+                              <button onClick={exportCalendar} className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 lg:px-4 lg:py-2 rounded-lg lg:rounded-xl font-bold text-xs lg:text-sm transition-colors shadow-sm cursor-pointer">
+                                <MIcon name="calendar-plus" size={16} className="lg:w-[18px] lg:h-[18px]" /> {lang === 'pt' ? 'Adicionar à Agenda' : 'Add to Calendar'}
+                              </button>
                           </div>
                         </div>
 
